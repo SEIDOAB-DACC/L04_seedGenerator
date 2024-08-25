@@ -13,7 +13,7 @@ namespace SeedGenerator
         //In order to separate from real and seeded instances
         public bool Seeded { get; set; }
 
-        //Seeded The instance
+        //Seeded The instance, you should always set Seeded = true in this method 
         public T Seed(csSeedGenerator seedGenerator);
     }
 
@@ -35,14 +35,14 @@ namespace SeedGenerator
     {
         csSeedJsonContent _seeds = null;
 
-        #region Names
+        #region get simple seeds for Names
         public string PetName => _seeds._names.PetNames[this.Next(0, _seeds._names.PetNames.Count)];
         public string FirstName => _seeds._names.FirstNames[this.Next(0, _seeds._names.FirstNames.Count)];
         public string LastName => _seeds._names.LastNames[this.Next(0, _seeds._names.LastNames.Count)];
         public string FullName => $"{FirstName} {LastName}";
         #endregion
 
-        #region Addresses
+        #region get simple seeds for Addresses
         public string Country => _seeds._addresses[this.Next(0, _seeds._addresses.Count)].Country;
         public string City(string Country = null)
         {
@@ -75,7 +75,7 @@ namespace SeedGenerator
         public int ZipCode => this.Next(10101, 100000);
         #endregion
 
-        #region Emails and phones
+        #region get simple seeds for Emails and PhoneNr
         public string Email(string fname = null, string lname = null)
         {
             fname ??= FirstName;
@@ -87,7 +87,7 @@ namespace SeedGenerator
         public string PhoneNr => $"{this.Next(700, 800)} {this.Next(100, 1000)} {this.Next(100, 1000)}";
         #endregion
 
-        #region Quotes
+        #region get complex seeds for Quotes
         public List<csSeededQuote> AllQuotes => _seeds._quotes
             .Select(q => new csSeededQuote { Quote = q.Quote, Author = q.Author })
             .ToList<csSeededQuote>();
@@ -101,7 +101,7 @@ namespace SeedGenerator
 
         #endregion
 
-        #region Latin
+        #region get complex and simple seeds for bogus Latin
         public List<csSeededLatin> AllLatin => _seeds._latin
             .Select(l => new csSeededLatin { Paragraph = l.Paragraph, Sentences = l.Sentences, Words = l.Words })
             .ToList();
@@ -141,7 +141,7 @@ namespace SeedGenerator
         public string LatinSentence => LatinSentences(1).FirstOrDefault();
         #endregion
 
-        #region Music
+        #region get simple seeds for names of Music Groups and Albums
         public string MusicGroupName => "The " + _seeds._music.GroupNames[this.Next(0, _seeds._music.GroupNames.Count)]
             + " " + _seeds._music.GroupNames[this.Next(0, _seeds._music.GroupNames.Count)];
 
@@ -151,7 +151,7 @@ namespace SeedGenerator
             + " " + _seeds._music.AlbumSuffix[this.Next(0, _seeds._music.AlbumSuffix.Count)];
         #endregion
 
-        #region DateTime, bool and decimal
+        #region get simple seeds for DateTime, bool and decimal numbers
         public DateTime DateAndTime(int? fromYear = null, int? toYear = null)
         {
             bool dateOK = false;
@@ -185,7 +185,7 @@ namespace SeedGenerator
         public decimal NextDecimal(int _from, int _to) => this.Next(_from * 1000, _to * 1000) / 1000M;
         #endregion
 
-        #region From own String, Enum and List<TItem>
+        #region pick seeds from your provided String, Enum type and List<TItem>
         public string FromString(string _inputString, string _splitDelimiter = ", ")
         {
             var _sarray = _inputString.Split(_splitDelimiter);
@@ -209,9 +209,89 @@ namespace SeedGenerator
         }
         #endregion
 
-        #region Generate seeded List of TItem
+        #region pick unique seeds from your provided List<TItem>
+        
+        //Pick a number of unique items from a list of TItem (the List does not have to be unique)
+        //ISeed<TItem> and IEquatable<TItem> has to be implemented to use this method
+        public List<TItem> UniqueItemsPickedFromList<TItem>(int tryNrOfItems, List<TItem> list)
+        where TItem : IEquatable<TItem>
+        {
+            //Create a list of uniquely seeded items
+            HashSet<TItem> _set = new HashSet<TItem>();
 
-        //ISeed<TItem> has to be implemented to use this method
+            while (_set.Count < tryNrOfItems)
+            {
+                var _item = list[this.Next(0, list.Count)];
+
+                int _preCount = _set.Count();
+                int tries = 0;
+                do
+                {
+                    _set.Add(_item);
+
+                    if (_set.Count == _preCount)
+                    {
+                        //Item was already in the _set. Pick a new one
+                        _item = list[this.Next(0, list.Count)];
+                        ++tries;
+
+                        //Does not seem to be able to pick new unique item
+                        if (tries > 5)
+                            return _set.ToList();
+                    }
+
+                } while (_set.Count <= _preCount);
+            }
+
+            return _set.ToList();
+        }
+
+        //Pick a number of items, all with unique indexes, from a list of TItem
+        //The items can be the same, but will be picked from unique indexes i the list.
+        public List<TItem> UniqueIndexPickedFromList<TItem>(int tryNrOfItems, List<TItem> list)
+             where TItem : new()
+        {
+            //Create a hashed list of unique indexes
+            HashSet<int> _set = new HashSet<int>();
+
+            while (_set.Count < tryNrOfItems)
+            {
+                var _idx = this.Next(0, list.Count);
+
+                int _preCount = _set.Count();
+                int tries = 0;
+                do
+                {
+                    _set.Add(_idx);
+
+                    if (_set.Count == _preCount)
+                    {
+                        //Idx was already in the _set. Generate a new one
+                        _idx = this.Next(0, list.Count);
+                        ++tries;
+
+                        //Does not seem to be able to generate new unique idx
+                        if (tries > 5)
+                            break;
+                    }
+
+                } while (_set.Count <= _preCount);
+            }
+
+            //I have now a set of unique idx
+            //return a list of items from a list with indexes
+            var retList = new List<TItem>();
+            foreach (var item in _set)
+            {
+                retList.Add(list[item]);
+            }
+            return retList;
+        }
+        #endregion
+
+        #region Generate seeded Lists of TItem, TItem must implement ISeed<TItem>
+
+        //ISeed<TItem> and, in some cases, IEquatable<TItem> has to be implemented to use this method
         public List<TItem> ItemsToList<TItem>(int NrOfItems)
             where TItem : ISeed<TItem>, new()
         {
@@ -257,86 +337,10 @@ namespace SeedGenerator
 
             return _set.ToList();
         }
-
-        //Pick a number of unique items from a list of TItem (the List does not have to be unique)
-        //IEquatable<TItem> has to be implemented to use this method
-        public List<TItem> UniqueItemsPickedFromList<TItem>(int tryNrOfItems, List<TItem> list)
-        where TItem : IEquatable<TItem>
-        {
-            //Create a list of uniquely seeded items
-            HashSet<TItem> _set = new HashSet<TItem>();
-
-            while (_set.Count < tryNrOfItems)
-            {
-                var _item = list[this.Next(0, list.Count)];
-
-                int _preCount = _set.Count();
-                int tries = 0;
-                do
-                {
-                    _set.Add(_item);
-
-                    if (_set.Count == _preCount)
-                    {
-                        //Item was already in the _set. Pick a new one
-                        _item = list[this.Next(0, list.Count)];
-                        ++tries;
-
-                        //Does not seem to be able to pick new unique item
-                        if (tries > 5)
-                            return _set.ToList();
-                    }
-
-                } while (_set.Count <= _preCount);
-            }
-
-            return _set.ToList();
-        }
-
-        //Pick a number of items, all with unique indexes, from a list of TItem
-        public List<TItem> UniqueIndexPickedFromList<TItem>(int tryNrOfItems, List<TItem> list)
-             where TItem : new()
-        {
-            //Create a hashed list of unique indexes
-            HashSet<int> _set = new HashSet<int>();
-
-            while (_set.Count < tryNrOfItems)
-            {
-                var _idx = this.Next(0, list.Count);
-
-                int _preCount = _set.Count();
-                int tries = 0;
-                do
-                {
-                    _set.Add(_idx);
-
-                    if (_set.Count == _preCount)
-                    {
-                        //Idx was already in the _set. Generate a new one
-                        _idx = this.Next(0, list.Count);
-                        ++tries;
-
-                        //Does not seem to be able to generate new unique idx
-                        if (tries > 5)
-                            break;
-                    }
-
-                } while (_set.Count <= _preCount);
-            }
-
-            //I have now a set of unique idx
-            //return a list of items from a list with indexes
-            var retList = new List<TItem>();
-            foreach (var item in _set)
-            {
-                retList.Add(list[item]);
-            }
-            return retList;
-        }
         #endregion
  
-        #region initialize master content
-        csSeedJsonContent CreateMasterSeedFile()
+        #region internal classes to initialize master seed source content
+        csSeedJsonContent CreateMasterSeeds()
         {
             return new csSeedJsonContent()
             {
@@ -595,17 +599,17 @@ namespace SeedGenerator
         }
         #endregion
 
-        #region create master json file
+        #region create seed source json file called master-seed.json
         public string WriteMasterStream()
         {
-            return CreateMasterSeedFile().WriteFile("master-seeds.json");
+            return CreateMasterSeeds().WriteFile("master-seeds.json");
         }
         #endregion
 
         #region contructors
         public csSeedGenerator()
         {
-            _seeds = CreateMasterSeedFile();
+            _seeds = CreateMasterSeeds();
         }
         public csSeedGenerator(string SeedPathName)
         {
@@ -617,7 +621,7 @@ namespace SeedGenerator
         }
         #endregion
 
-        #region internal classes
+        #region internal classes to read seed source from json file
         class csSeedLatin
         {
             #region Latin towards json file
@@ -850,7 +854,6 @@ namespace SeedGenerator
             [JsonIgnore]
             public List<string> AlbumSuffix => _albumSuffix;
         }
-
         class csSeedJsonContent
         {
             public List<csSeedQuote> _quotes { get; set; } = new List<csSeedQuote>();
